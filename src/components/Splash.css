@@ -1,0 +1,47 @@
+#splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    animation: fadeOut 0.5s ease-in-out 2.5s forwards;
+}
+
+.road {
+    width: 80%;
+    height: 4px;
+    background-color: #555;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.car {
+    font-size: 50px;
+    position: absolute;
+    bottom: 0;
+    left: -100px;
+    animation: drive 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.loading-text {
+    color: white;
+    font-size: 24px;
+}
+
+@keyframes drive {
+    0% { left: -100px; }
+    100% { left: 110%; }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
