@@ -14,6 +14,7 @@ public class Order {
     private String carBrandAndModel; // למשל: "Tesla Model 3"
     private double finalPrice;
     private LocalDateTime orderDate = LocalDateTime.now();
+    private String status = "ההזמנה אושרה"; // השדה החדש בטבלת ההזמנות!
 
     // Getters and Setters
     public String getId() { return id; }
@@ -33,4 +34,7 @@ public class Order {
 
     public LocalDateTime getOrderDate() { return orderDate; }
     public void setOrderDate(LocalDateTime orderDate) { this.orderDate = orderDate; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

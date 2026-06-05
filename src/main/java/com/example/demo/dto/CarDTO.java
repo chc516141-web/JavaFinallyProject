@@ -22,4 +22,5 @@ public class CarDTO {
 
     public String getImageFile() { return imageFile; }
     public void setImageFile(String imageFile) { this.imageFile = imageFile; }
+
 }

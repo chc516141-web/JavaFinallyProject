@@ -20,6 +20,9 @@ public class OrderService {
 
     // 2. יצירת הזמנה חדשה
     public Order createOrder(Order order) {
+        if (order.getStatus() == null) {
+            order.setStatus("ההזמנה אושרה");
+        }
         return orderRepository.save(order);
     }
 
@@ -28,7 +31,7 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-    // 4. עדכון הזמנה קיימת
+    // 4. עדכון הזמנה קיימת (כולל הסטטוס)
     public Order updateOrder(String id, Order updatedOrder) {
         Optional<Order> existingOrderOpt = orderRepository.findById(id);
         if (existingOrderOpt.isPresent()) {
@@ -37,6 +40,12 @@ public class OrderService {
             order.setCustomerPhone(updatedOrder.getCustomerPhone());
             order.setCarBrandAndModel(updatedOrder.getCarBrandAndModel());
             order.setFinalPrice(updatedOrder.getFinalPrice());
+            
+            // עדכון הסטטוס אם הוא נשלח בעדכון
+            if (updatedOrder.getStatus() != null) {
+                order.setStatus(updatedOrder.getStatus());
+            }
+            
             return orderRepository.save(order);
         }
         return null; // אם ההזמנה לא נמצאה
