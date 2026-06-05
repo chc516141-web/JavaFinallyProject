@@ -1,295 +1,98 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-const OrdersTable = ({ 
-  user, 
-  displayedOrders, 
-  editingOrderId, 
-  setEditingOrderId, 
-  editForm, 
-  setEditForm, 
-  handleUpdateOrder, 
-  startEdit, 
-  handleDeleteOrder,
-  searchTerm, setSearchTerm,
-  minPrice, setMinPrice,
-  maxPrice, setMaxPrice
-}) => {
+const OrderProgressBar = ({ currentStatus }) => {
+  const steps = ['ההזמנה אושרה', 'נשלח', 'נקודת איסוף', 'נמסר'];
+  const activeIndex = steps.indexOf(currentStatus);
+
+  return (
+    <div style={stepperStyles.container}>
+      <div style={stepperStyles.timelineWrapper}>
+        {steps.map((step, idx) => (
+          <div key={idx} style={stepperStyles.stepWrapper}>
+            {idx > 0 && <div style={{...stepperStyles.line, backgroundColor: idx <= activeIndex ? '#222' : '#ccc'}} />}
+            <div style={{...stepperStyles.circle, backgroundColor: idx <= activeIndex ? '#222' : '#fff', border: '1px solid #222'}} />
+            <span style={{...stepperStyles.label, fontWeight: idx === activeIndex ? 'bold' : 'normal'}}>{step}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const OrdersTable = ({ user, displayedOrders, handleDeleteOrder, handleUpdateOrderStatus }) => {
+  const [selectedRowId, setSelectedRowId] = useState(null);
 
   return (
     <section style={styles.ordersSection}>
-      <div style={styles.ordersHeader}>
-        <h2 style={styles.sectionTitle}>
-          {user.role === 'admin' ? 'לוח ניהול פניות והזמנות' : 'היסטוריית פניות ורכישות'}
-        </h2>
-        <span style={styles.orderBadgeCount}>{displayedOrders.length} רשומות נמצאו</span>
-      </div>
-
-      {/* אזור סינונים וחיפוש */}
-      <div style={styles.filterContainer}>
-        <div style={styles.filterGroup}>
-          <label style={styles.filterLabel}>חיפוש חופשי (שם / טלפון / דגם)</label>
-          <input 
-            type="text" 
-            placeholder="הקלד לחיפוש..." 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-            style={styles.filterInput}
-          />
-        </div>
-        <div style={styles.filterGroup}>
-          <label style={styles.filterLabel}>מחיר מינימלי (₪)</label>
-          <input 
-            type="number" 
-            placeholder="ממחיר..." 
-            value={minPrice} 
-            onChange={(e) => setMinPrice(e.target.value)} 
-            style={styles.filterInput}
-          />
-        </div>
-        <div style={styles.filterGroup}>
-          <label style={styles.filterLabel}>מחיר מקסימלי (₪)</label>
-          <input 
-            type="number" 
-            placeholder="עד מחיר..." 
-            value={maxPrice} 
-            onChange={(e) => setMaxPrice(e.target.value)} 
-            style={styles.filterInput}
-          />
-        </div>
-        {(searchTerm || minPrice || maxPrice) && (
-          <button 
-            onClick={() => { setSearchTerm(''); setMinPrice(''); setMaxPrice(''); }} 
-            style={styles.clearFilterBtn}
-          >
-            איפוס סינונים
-          </button>
-        )}
-      </div>
-      
-      {displayedOrders.length === 0 ? (
-        <p style={styles.noOrdersText}>אין נתונים להצגה במערכת.</p>
-      ) : (
-        <div style={{ overflowX: 'auto', textAlign: 'right' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>שם הלקוח</th>
-                <th style={styles.th}>טלפון ליצירת קשר</th>
-                <th style={styles.th}>פרטי הדגם</th>
-                <th style={styles.th}>סך הכל</th>
-                {user.role === 'admin' && <th style={{ ...styles.th, textAlign: 'center' }}>פעולות מערכת</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {displayedOrders.map((order) => (
-                <tr key={order.id} style={styles.tableRow}>
-                  {editingOrderId === order.id && user.role === 'admin' ? (
-                    <>
-                      <td style={styles.td}><input type="text" style={styles.editInput} value={editForm.customerName} onChange={(e) => setEditForm({...editForm, customerName: e.target.value})} /></td>
-                      <td style={styles.td}><input type="text" style={styles.editInput} value={editForm.customerPhone} onChange={(e) => setEditForm({...editForm, customerPhone: e.target.value})} /></td>
-                      <td style={styles.td}><input type="text" style={styles.editInput} value={editForm.carBrandAndModel} onChange={(e) => setEditForm({...editForm, carBrandAndModel: e.target.value})} /></td>
-                      <td style={styles.td}><input type="number" style={styles.editInput} value={editForm.finalPrice} onChange={(e) => setEditForm({...editForm, finalPrice: Number(e.target.value)})} /></td>
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <button onClick={() => handleUpdateOrder(order.id)} style={styles.saveBtn}>שמור</button>
-                        <button onClick={() => setEditingOrderId(null)} style={styles.cancelBtn}>ביטול</button>
-                      </td>
-                    </>
+      <table style={styles.table}>
+        <thead>
+          <tr style={{ backgroundColor: '#f4f4f4' }}>
+            <th style={styles.th}>שם לקוח</th>
+            <th style={styles.th}>טלפון</th>
+            <th style={styles.th}>רכב</th>
+            <th style={styles.th}>מחיר</th>
+            <th style={styles.th}>סטטוס</th>
+            {user.role === 'admin' && <th style={styles.th}>פעולות</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {displayedOrders.map((order) => (
+            <React.Fragment key={order.id}>
+              <tr 
+                style={{...styles.tr, cursor: user.role !== 'admin' ? 'pointer' : 'default'}} 
+                onClick={() => user.role !== 'admin' && setSelectedRowId(selectedRowId === order.id ? null : order.id)}
+              >
+                <td style={styles.td}>{order.customerName}</td>
+                <td style={styles.td}>{order.customerPhone}</td>
+                <td style={styles.td}>{order.carBrandAndModel}</td>
+                <td style={styles.td}>{order.finalPrice.toLocaleString()} ₪</td>
+                <td style={styles.td}>
+                  {user.role === 'admin' ? (
+                    <select value={order.status || 'ההזמנה אושרה'} onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)} style={styles.select}>
+                      {['ההזמנה אושרה', 'נשלח', 'נקודת איסוף', 'נמסר'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                   ) : (
-                    <>
-                      <td style={styles.td}>{order.customerName}</td>
-                      <td style={styles.td}>{order.customerPhone}</td>
-                      <td style={styles.td}><span style={styles.carTag}>{order.carBrandAndModel}</span></td>
-                      <td style={styles.priceTd}>
-                        {order.finalPrice ? order.finalPrice.toLocaleString() : 0} ₪
-                      </td>
-                      {user.role === 'admin' && (
-                        <td style={{ ...styles.td, textAlign: 'center' }}>
-                          <button onClick={() => startEdit(order)} style={styles.actionEditBtn}>ערוך</button>
-                          <button onClick={() => handleDeleteOrder(order.id)} style={styles.actionDeleteBtn}>מחק</button>
-                        </td>
-                      )}
-                    </>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                      <div style={{...styles.dot, backgroundColor: '#222'}} /> {order.status || 'ההזמנה אושרה'}
+                    </div>
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </td>
+                {user.role === 'admin' && (
+                  <td style={styles.td}>
+                    <button onClick={() => handleDeleteOrder(order.id)} style={{...styles.delBtn, color: 'red'}}>מחק</button>
+                    <button onClick={() => setSelectedRowId(selectedRowId === order.id ? null : order.id)} style={styles.viewBtn}>צפה בתהליך</button>
+                  </td>
+                )}
+              </tr>
+              {selectedRowId === order.id && (
+                <tr><td colSpan={user.role === 'admin' ? 6 : 5}><OrderProgressBar currentStatus={order.status} /></td></tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 };
 
 const styles = {
-  ordersSection: { 
-    border: '1px solid #e5e5e5', 
-    padding: '25px', 
-    backgroundColor: '#ffffff', 
-    marginTop: '30px', 
-    direction: 'rtl' 
-  },
-  ordersHeader: { 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: '25px', 
-    direction: 'rtl' 
-  },
-  sectionTitle: {
-    fontSize: '18px',
-    fontWeight: '700',
-    color: '#000000',
-    letterSpacing: '0.5px',
-    margin: 0
-  },
-  orderBadgeCount: { 
-    fontSize: '13px', 
-    fontWeight: '600',
-    color: '#232222ff',
-    borderBottom: '1px solid #000000',
-    paddingBottom: '2px'
-  },
-  filterContainer: { 
-    display: 'flex', 
-    gap: '15px', 
-    flexWrap: 'wrap', 
-    background: '#fafafa', 
-    padding: '20px', 
-    marginBottom: '25px', 
-    border: '1px solid #e5e5e5', 
-    alignItems: 'flex-end', 
-    direction: 'rtl' 
-  },
-  filterGroup: { 
-    display: 'flex', 
-    flexDirection: 'column', 
-    gap: '6px', 
-    flex: '1', 
-    minWidth: '180px', 
-    textAlign: 'right' 
-  },
-  filterLabel: { 
-    fontSize: '12px', 
-    fontWeight: '600', 
-    color: '#333333', 
-    textAlign: 'right' 
-  },
-  filterInput: { 
-    padding: '10px 12px', 
-    border: '1px solid #ccc', 
-    fontSize: '13px', 
-    borderRadius: '0px',
-    backgroundColor: '#ffffff',
-    color: '#000000',
-    textAlign: 'right', 
-    direction: 'rtl',
-    boxSizing: 'border-box'
-  },
-  clearFilterBtn: { 
-    background: 'transparent', 
-    color: '#000000', 
-    border: '1px solid #000000', 
-    padding: '10px 15px', 
-    borderRadius: '0px',
-    cursor: 'pointer', 
-    fontWeight: '600', 
-    fontSize: '12px', 
-    height: '38px',
-    letterSpacing: '0.5px'
-  },
-  noOrdersText: { 
-    textAlign: 'center', 
-    color: '#777777', 
-    margin: '40px 0',
-    fontSize: '14px' 
-  },
-  table: { 
-    width: '100%', 
-    borderCollapse: 'collapse', 
-    marginTop: '10px', 
-    direction: 'rtl' 
-  },
-  thRow: {
-    borderBottom: '2px solid #000000'
-  },
-  th: { 
-    padding: '14px 12px', 
-    textAlign: 'right', 
-    background: '#ffffff', 
-    color: '#000000',
-    fontSize: '13px',
-    fontWeight: '700',
-    letterSpacing: '0.5px'
-  },
-  tableRow: {
-    borderBottom: '1px solid #e5e5e5',
-    backgroundColor: '#ffffff'
-  },
-  td: { 
-    padding: '14px 12px', 
-    verticalAlign: 'middle', 
-    textAlign: 'right',
-    fontSize: '14px',
-    color: '#333333'
-  },
-  priceTd: {
-    padding: '14px 12px', 
-    verticalAlign: 'middle', 
-    textAlign: 'right',
-    fontSize: '14px',
-    color: '#000000', 
-    fontWeight: '700'
-  },
-  carTag: { 
-    fontWeight: '600',
-    color: '#000000'
-  },
-  editInput: { 
-    width: '100%', 
-    padding: '8px', 
-    borderRadius: '0px', 
-    border: '1px solid #000000', 
-    textAlign: 'right' 
-  },
-  actionEditBtn: { 
-    background: 'transparent', 
-    color: '#000000', 
-    border: '1px solid #000000', 
-    padding: '6px 12px', 
-    marginLeft: '8px', 
-    borderRadius: '0px', 
-    cursor: 'pointer', 
-    fontWeight: '600',
-    fontSize: '12px'
-  },
-  actionDeleteBtn: { 
-    background: '#000000', 
-    color: '#ffffff', 
-    border: '1px solid #000000', 
-    padding: '6px 12px', 
-    borderRadius: '0px', 
-    cursor: 'pointer', 
-    fontWeight: '600',
-    fontSize: '12px'
-  },
-  saveBtn: { 
-    background: '#000000', 
-    color: '#ffffff', 
-    border: '1px solid #000000', 
-    padding: '6px 12px', 
-    marginLeft: '5px', 
-    borderRadius: '0px', 
-    cursor: 'pointer', 
-    fontWeight: '600' 
-  },
-  cancelBtn: { 
-    background: 'transparent', 
-    color: '#555555', 
-    border: '1px solid #ccc', 
-    padding: '6px 12px', 
-    borderRadius: '0px', 
-    cursor: 'pointer' 
-  }
+  ordersSection: { padding: '20px', direction: 'rtl' },
+  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'right' },
+  th: { padding: '12px', borderBottom: '2px solid #222', fontSize: '14px' },
+  td: { padding: '12px', borderBottom: '1px solid #ddd', fontSize: '14px' },
+  select: { padding: '5px', borderRadius: '0', border: '1px solid #222' },
+  dot: { width: '10px', height: '10px', borderRadius: '50%' },
+  delBtn: { background: '#fff', border: '1px solid #222', cursor: 'pointer', padding: '5px 10px', marginLeft: '5px' },
+  viewBtn: { background: '#222', color: '#fff', border: 'none', cursor: 'pointer', padding: '5px 10px' }
+};
+
+const stepperStyles = {
+  container: { padding: '20px', background: '#fafafa' },
+  timelineWrapper: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  stepWrapper: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' },
+  circle: { width: '12px', height: '12px', borderRadius: '50%' },
+  line: { position: 'absolute', top: '5px', right: '50%', width: '100%', height: '1px', zIndex: -1 },
+  label: { marginTop: '10px', fontSize: '12px' }
 };
 
 export default OrdersTable;

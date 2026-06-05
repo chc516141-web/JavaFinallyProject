@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import './App.css'
 import AuthForm from './components/AuthForm';
@@ -10,10 +9,8 @@ import AdminDashboard from './components/AdminDashboard';
 import OrdersTable from './components/OrdersTable';
 import CarCard from './components/CarCard';
 
-// רכיב ה-Splash המתוזמן במדויק
 const Splash = ({ onFinished }) => {
   useEffect(() => {
-    // הדף ייטען בדיוק 2.6 שניות מתחילת האנימציה (מיד כשהרכב מסיים לנסוע)
     const timer = setTimeout(() => {
       onFinished();
     }, 2600); 
@@ -22,20 +19,13 @@ const Splash = ({ onFinished }) => {
 
   return (
     <div style={styles.splashContainer}>
-      {/* הזרקת האנימציה המהירה והחלקה */}
       <style>{`
         @keyframes driveAcrossEntireScreen {
-          0% {
-            transform: translateX(-150px);
-          }
-          100% {
-            transform: translateX(115vw); /* יוצא לחלוטין מגבולות המסך הימניים */
-          }
+          0% { transform: translateX(-150px); }
+          100% { transform: translateX(115vw); }
         }
       `}</style>
-
       <div style={styles.animationWrapper}>
-        {/* זמן האנימציה קוצר ל-2.5 שניות לנסיעה זורמת וקולעת */}
         <div style={styles.animatedCarWrapper}>
           <img src="/sports-car.png" alt="Car" style={styles.splashCarImage} />
         </div>
@@ -46,6 +36,7 @@ const Splash = ({ onFinished }) => {
 
 function App() {
   const [cars, setCars] = useState([])
+  const [topCars, setTopCars] = useState([]) 
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   
@@ -56,8 +47,6 @@ function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false)
 
   const [orders, setOrders] = useState([])
-  const [editingOrderId, setEditingOrderId] = useState(null)
-  const [editForm, setEditForm] = useState({ customerName: '', customerPhone: '', carBrandAndModel: '', finalPrice: 0 })
 
   const [selectedCar, setSelectedCar] = useState(null)
   const [cart, setCart] = useState([]) 
@@ -70,14 +59,38 @@ function App() {
   const [showAdminAddCar, setShowAdminAddCar] = useState(false) 
   const [showAdminOrders, setShowAdminOrders] = useState(false) 
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [minPrice, setMinPrice] = useState('')
-  const [maxPrice, setMaxPrice] = useState('')
+  const ordersSectionRef = useRef(null)
+
+  // סינוני קטלוג רכבים ראשי
+  const [minPriceInput, setMinPriceInput] = useState('')
+  const [maxPriceInput, setMaxPriceInput] = useState('')
+  const [appliedMinPrice, setAppliedMinPrice] = useState('')
+  const [appliedMaxPrice, setAppliedMaxPrice] = useState('')
+
+  // סטייט מאוחד לסינוני הפניות
+  const [activeOrderFilters, setActiveOrderFilters] = useState({ search: '', date: '', minPrice: '', maxPrice: '' });
+
+  const scrollToOrders = () => {
+    setTimeout(() => {
+      if (ordersSectionRef.current) {
+        ordersSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  }
 
   const fetchCars = async () => {
     try {
-      const response = await axios.get('http://localhost:8080/api/cars')
-      setCars(response.data)
+      setLoading(true)
+      let url = 'http://localhost:8080/api/cars'
+      let config = {}
+
+      if (appliedMinPrice && appliedMaxPrice) {
+        url = 'http://localhost:8080/api/cars/search'
+        config.params = { min: Number(appliedMinPrice), max: Number(appliedMaxPrice) }
+      }
+
+      const response = await axios.get(url, config)
+      setCars(response.data || [])
       setLoading(false)
     } catch (error) {
       console.error("שגיאה בטעינת הרכבים:", error)
@@ -85,30 +98,77 @@ function App() {
     }
   }
 
+  const fetchTopNewestCars = async () => {
+    try {
+      const response = await axios.get('http://localhost:8080/api/cars/newest')
+      setTopCars(response.data || [])
+    } catch (error) {
+      console.error("שגיאה בטעינת הרכבים החדשים ביותר:", error)
+    }
+  }
+
+  const handleApplyDiscount = async (brand, percentage) => {
+    try {
+      const response = await axios.put('http://localhost:8080/api/cars/discount', null, {
+        params: { brand, percentage: Number(percentage) }
+      })
+      alert(response.data) 
+      fetchCars() 
+    } catch (error) {
+      console.error("שגיאה בהחלת ההנחה:", error)
+      alert("נכשלה החלת ההנחה. ודא כי שם היצרן מדויק.")
+    }
+  }
+
   const fetchOrders = async () => {
     try {
-      const response = await axios.get('http://localhost:8080/api/orders', {
-        params: {
-          search: searchTerm || null,
-          minPrice: minPrice ? Number(minPrice) : null,
-          maxPrice: maxPrice ? Number(maxPrice) : null
-        }
-      })
-      setOrders(response.data)
+      const response = await axios.get('http://localhost:8080/api/orders')
+      // וידוא שלכל פנייה יש שדה אופציונלי של allowClientEdit
+      const formattedOrders = (response.data || []).map(o => ({...o, allowClientEdit: o.allowClientEdit || false}));
+      setOrders(formattedOrders)
     } catch (error) {
       console.error("שגיאה בטעינת ההזמנות מהשרת:", error)
     }
   }
 
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
+    setAppliedMinPrice(minPriceInput);
+    setAppliedMaxPrice(maxPriceInput);
+  }
+
+  const handleResetFilter = () => {
+    setMinPriceInput('');
+    setMaxPriceInput('');
+    setAppliedMinPrice('');
+    setAppliedMaxPrice('');
+  }
+
   useEffect(() => {
     fetchCars()
+  }, [appliedMinPrice, appliedMaxPrice])
+
+  useEffect(() => {
+    fetchTopNewestCars()
   }, [])
 
   useEffect(() => {
     if (user) {
       fetchOrders()
     }
-  }, [searchTerm, minPrice, maxPrice, user])
+  }, [user])
+
+  useEffect(() => {
+    if (user?.role === 'admin' && showAdminOrders) {
+      scrollToOrders();
+    }
+  }, [showAdminOrders])
+
+  useEffect(() => {
+    if (user?.role === 'user' && isEditingProfile && showUserOrders) {
+      scrollToOrders();
+    }
+  }, [showUserOrders, isEditingProfile])
 
   const handleUpdateProfile = (e) => {
     e.preventDefault();
@@ -127,6 +187,7 @@ function App() {
       setNewCarForm({ brand: '', model: '', productionYear: '', price: '', imageFile: '' }) 
       setShowAdminAddCar(false) 
       alert("הרכב התווסף למלאי בהצלחה")
+      fetchTopNewestCars()
     } catch (error) {
       console.error("שגיאה בהוספת הרכב:", error)
     }
@@ -150,7 +211,9 @@ function App() {
       customerName: user ? user.fullName : "לקוח כללי",
       customerPhone: user?.phone || "050-0000000",
       carBrandAndModel: allCarsString,
-      finalPrice: totalCartPrice
+      finalPrice: totalCartPrice,
+      status: 'ההזמנה אושרה', // ברירת מחדל תואמת לסרגל
+      allowClientEdit: false
     }
 
     try {
@@ -165,7 +228,7 @@ function App() {
   }
 
   const handleDeleteOrder = async (id) => {
-    if (window.confirm("האם אתה בטוח?")) {
+    if (window.confirm("האם למחוק פניה זו לצמיתות מהמערכת?")) {
       try {
         await axios.delete(`http://localhost:8080/api/orders/${id}`)
         setOrders(orders.filter(order => order.id !== id))
@@ -173,32 +236,101 @@ function App() {
     }
   }
 
-  const startEdit = (order) => {
-    setEditingOrderId(order.id)
-    setEditForm({ customerName: order.customerName, customerPhone: order.customerPhone, carBrandAndModel: order.carBrandAndModel, finalPrice: order.finalPrice })
-  }
-
-  const handleUpdateOrder = async (id) => {
+  const handleUpdateOrderStatus = async (id, newStatus) => {
     try {
-      const response = await axios.put(`http://localhost:8080/api/orders/${id}`, editForm)
-      setOrders(orders.map(order => order.id === id ? response.data : order))
-      setEditingOrderId(null)
-      alert("ההזמנה עודכנה")
-    } catch (error) { console.error(error) }
+      const orderToUpdate = orders.find(o => o.id === id);
+      if (!orderToUpdate) return;
+
+      setOrders(prevOrders => prevOrders.map(order => order.id === id ? { ...order, status: newStatus } : order));
+
+      await axios.put(`http://localhost:8080/api/orders/${id}`, {
+        ...orderToUpdate,
+        status: newStatus
+      });
+    } catch (error) {
+      console.error("שגיאה בסנכרון הסטטוס מול השרת:", error);
+    }
   }
 
-  const displayedOrders = user && user.role === 'admin' 
-    ? orders 
-    : orders.filter(order => order.customerName === user?.fullName);
+  // פונקציה חדשה: מנהל מאשר/חוסם גישת עריכה ללקוח
+  const handleToggleClientEdit = async (id, allowStatus) => {
+    try {
+      const orderToUpdate = orders.find(o => o.id === id);
+      if (!orderToUpdate) return;
+
+      setOrders(prevOrders => prevOrders.map(order => order.id === id ? { ...order, allowClientEdit: allowStatus } : order));
+
+      await axios.put(`http://localhost:8080/api/orders/${id}`, {
+        ...orderToUpdate,
+        allowClientEdit: allowStatus
+      });
+    } catch (error) {
+      console.error("שגיאה בעדכון הרשאת עריכה:", error);
+    }
+  }
+
+  // פונקציה חדשה: לקוח מעדכן את הפנייה שלו מרחוק
+  const handleClientUpdateOrder = async (id, updatedFields) => {
+    try {
+      const orderToUpdate = orders.find(o => o.id === id);
+      if (!orderToUpdate) return;
+
+      const finalUpdated = { ...orderToUpdate, ...updatedFields, allowClientEdit: false }; // סגירת הרשאה לאחר עדכון
+
+      setOrders(prevOrders => prevOrders.map(order => order.id === id ? finalUpdated : order));
+
+      await axios.put(`http://localhost:8080/api/orders/${id}`, finalUpdated);
+      alert("הפנייה עודכנה בהצלחה ונשלחה חזרה למנהל!");
+    } catch (error) {
+      console.error("שגיאה בעדכון הנתונים ע\"י הלקוח:", error);
+    }
+  }
+
+  const getFilteredOrders = () => {
+    if (!orders || !Array.isArray(orders)) return [];
+
+    let baseOrders = user && user.role === 'admin' 
+      ? orders 
+      : orders.filter(order => order && order.customerName === user?.fullName);
+
+    const { search, date, minPrice, maxPrice } = activeOrderFilters;
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      baseOrders = baseOrders.filter(o => {
+        const carMatch = o.carBrandAndModel ? o.carBrandAndModel.toLowerCase().includes(searchLower) : false;
+        const nameMatch = o.customerName ? o.customerName.toLowerCase().includes(searchLower) : false;
+        return carMatch || nameMatch;
+      });
+    }
+
+    if (date) {
+      baseOrders = baseOrders.filter(o => {
+        const orderDateStr = o.orderDate || o.createdAt || o.date || '';
+        return orderDateStr.toString().includes(date);
+      });
+    }
+
+    if (user && user.role === 'admin') {
+      if (minPrice) {
+        baseOrders = baseOrders.filter(o => o.finalPrice >= Number(minPrice));
+      }
+      if (maxPrice) {
+        baseOrders = baseOrders.filter(o => o.finalPrice <= Number(maxPrice));
+      }
+    }
+
+    return baseOrders;
+  };
+
+  const displayedOrders = getFilteredOrders();
 
   return (
     <div className="app-container" style={{ direction: 'rtl', padding: '40px 20px', fontFamily: 'sans-serif', backgroundColor: '#ffffff', color: '#000000', minHeight: '100vh' }}>
       
       {showSplash ? (
-        /* 1. ה-Splash החדש והנקי עם רכב אחד שנוסע לאט */
         <Splash onFinished={() => setShowSplash(false)} />
       ) : !user ? (
-        /* 2. לאחר מכן מעבר למסך הלוגו עם כפתור הכניסה */
         !startAuth ? (
           <div style={styles.landingPage}>
             <h1 style={styles.landingLogo}>MOTORS GALLERY</h1>
@@ -214,7 +346,6 @@ function App() {
       ) : loading ? (
         <div style={{ textAlign: 'center', marginTop: '100px' }}>טוען נתונים...</div>
       ) : completedOrder ? (
-        
         <div style={styles.successPage}>
           <div style={styles.successCard}>
             <h1 style={{ color: '#000', fontSize: '28px', fontWeight: 'bold', marginBottom: '10px' }}>ההזמנה התקבלה</h1>
@@ -228,10 +359,8 @@ function App() {
             <button onClick={() => setCompletedOrder(null)} style={styles.blackBtn}>חזרה לקטלוג</button>
           </div>
         </div>
-
       ) : (
         <>
-          {/* אפליקציה ראשית */}
           <header className="app-header" style={styles.welcomeHeader}>
             <div>
               <h1 style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '1px', margin: 0 }}>MOTORS GALLERY</h1>
@@ -246,7 +375,7 @@ function App() {
                     {isEditingProfile ? 'סגור אזור אישי' : 'אזור אישי'}
                   </button>
                   <button onClick={() => setIsCartOpen(true)} style={styles.blackBtn}>עגלת רכישה ({cart.length})</button>
-                </>
+                </                >
               )}
               <button onClick={() => setUser(null)} style={styles.outlineBtn}>התנתק</button>
             </div>
@@ -265,32 +394,79 @@ function App() {
               showAdminAddCar={showAdminAddCar} setShowAdminAddCar={setShowAdminAddCar}
               showAdminOrders={showAdminOrders} setShowAdminOrders={setShowAdminOrders}
               handleAddCar={handleAddCar} newCarForm={newCarForm} setNewCarForm={setNewCarForm}
+              handleApplyDiscount={handleApplyDiscount} 
             />
           )}
 
+          {/* 3 הרכבים החדשים ביותר */}
+          {topCars.length > 0 && !appliedMinPrice && !appliedMaxPrice && (
+            <section style={{ marginTop: '20px', backgroundColor: '#fdfdfd', padding: '20px', border: '1px dashed #000' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '15px', color: '#d9534f' }}>🔥 הלהיטים החדישים ביותר באולם</h2>
+              <main className="cars-grid" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                {topCars.map((car, index) => (
+                  <div key={`top-${index}`} style={{ flex: '1', minWidth: '250px', border: '1px solid #ddd', padding: '10px' }}>
+                    <h4>{car.brand} {car.model} ({car.productionYear})</h4>
+                    <p>מחיר: {car.price.toLocaleString()} ₪</p>
+                    <button onClick={() => setSelectedCar(car)} style={{ ...styles.outlineBtn, padding: '5px 10px', fontSize: '12px' }}>פרטים נוספים</button>
+                  </div>
+                ))}
+              </main>
+            </section>
+          )}
+
+          {/* קטלוג ראשי */}
           <section style={{ marginTop: '30px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '25px' }}>רכבים זמינים בתצוגה</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>רכבים זמינים בתצוגה</h2>
+              
+              <form onSubmit={handleFilterSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input 
+                  type="number" 
+                  placeholder="מחיר מ..." 
+                  value={minPriceInput} 
+                  onChange={(e) => setMinPriceInput(e.target.value)} 
+                  style={{ padding: '8px', border: '1px solid #000', width: '110px', color: '#000000', fontWeight: 'bold' }} 
+                />
+                <input 
+                  type="number" 
+                  placeholder="עד מחיר..." 
+                  value={maxPriceInput} 
+                  onChange={(e) => setMaxPriceInput(e.target.value)} 
+                  style={{ padding: '8px', border: '1px solid #000', width: '110px', color: '#000000', fontWeight: 'bold' }} 
+                />
+                <button type="submit" style={{ ...styles.blackBtn, padding: '8px 15px', fontSize: '13px' }}>סנן תוצאות</button>
+                {(appliedMinPrice || appliedMaxPrice || minPriceInput || maxPriceInput) && (
+                  <button type="button" onClick={handleResetFilter} style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', color: '#666' }}>אפס סינון</button>
+                )}
+              </form>
+            </div>
+
             <main className="cars-grid">
-              {cars.map((car, index) => (
-                <CarCard key={index} car={car} user={user} handleAddToCart={handleAddToCart} setSelectedCar={setSelectedCar} />
-              ))}
+              {cars.length === 0 ? <p>לא נמצאו רכבים בטווח מחירים זה.</p> : 
+                cars.map((car, index) => (
+                  <CarCard key={index} car={car} user={user} handleAddToCart={handleAddToCart} setSelectedCar={setSelectedCar} />
+                ))
+              }
             </main>
           </section>
 
-          {((user.role === 'admin' && showAdminOrders) || (user.role === 'user' && showUserOrders)) && (
-            <>
+          {/* טבלת פניות/היסטוריה */}
+          {((user.role === 'admin' && showAdminOrders) || (user.role === 'user' && isEditingProfile && showUserOrders)) && (
+            <div ref={ordersSectionRef} style={{ scrollMarginTop: '20px' }}>
               <hr style={{ margin: '40px 0', border: '0', borderTop: '2px dashed #ccc' }} />
               <OrdersTable 
-                user={user} displayedOrders={displayedOrders} editingOrderId={editingOrderId} 
-                setEditingOrderId={setEditingOrderId} editForm={editForm} setEditForm={setEditForm} 
-                handleUpdateOrder={handleUpdateOrder} startEdit={startEdit} handleDeleteOrder={handleDeleteOrder} 
-                searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                minPrice={minPrice} setMinPrice={setMinPrice}
-                maxPrice={maxPrice} setMaxPrice={maxPrice}
+                user={user} 
+                displayedOrders={displayedOrders} 
+                handleDeleteOrder={handleDeleteOrder} 
+                handleUpdateOrderStatus={handleUpdateOrderStatus}
+                handleToggleClientEdit={handleToggleClientEdit}
+                handleClientUpdateOrder={handleClientUpdateOrder}
+                onApplyFilters={(filters) => setActiveOrderFilters(filters)}
               />
-            </>
+            </div>
           )}
 
+          {/* עגלת קניות */}
           {isCartOpen && user.role === 'user' && (
             <div style={styles.cartOverlay} onClick={() => setIsCartOpen(false)}>
               <div style={styles.cartSidebar} onClick={(e) => e.stopPropagation()}>
@@ -324,6 +500,7 @@ function App() {
             </div>
           )}
 
+          {/* מודאל פרטי רכב */}
           {selectedCar && (
             <div style={styles.modalOverlay} onClick={() => setSelectedCar(null)}>
               <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -347,14 +524,10 @@ function App() {
 }
 
 const styles = {
-  // עיצוב ה-Splash המינימליסטי
-  splashContainer: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#ffffff', overflow: 'hidden', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 },
+  splashContainer: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff', overflow: 'hidden', zIndex: 9999 },
   animationWrapper: { position: 'relative', width: '100vw', height: '150px', display: 'flex', alignItems: 'center' },
-  // הנסיעה מוגדרת ל-4 שניות, ו-forwards גורם לו להישאר במיקום הסופי (מחוץ למסך) ולא לקפוץ חזרה להתחלה
   animatedCarWrapper: { position: 'absolute', left: 0, animation: 'driveAcrossEntireScreen 4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards' },
   splashCarImage: { width: '140px', height: 'auto', display: 'block', backgroundColor: 'transparent' },
-
-  // שאר דפי המערכת
   landingPage: { display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '80vh', textAlign: 'center' },
   landingLogo: { fontSize: '48px', fontWeight: '900', letterSpacing: '3px', margin: '0 0 10px 0' },
   landingSubtitle: { fontSize: '16px', color: '#666', marginBottom: '40px', letterSpacing: '1px' },
